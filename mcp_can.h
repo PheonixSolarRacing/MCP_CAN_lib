@@ -99,7 +99,9 @@ public:
     byte checkError(void);                                         /* if something error           */
     INT32U getCanId(void);                                          /* get can id when receive      */
 
-//------Error Handaling-------------------GRM
+    //------Trasmission Configuration--------SEG
+
+    //------Error Handling-------------------GRM
     byte getTxErrors(void);  //
     byte getRxErrors(void);
     boolean getErrorFlag(byte bitName);
