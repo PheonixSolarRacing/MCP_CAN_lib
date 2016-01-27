@@ -32,9 +32,9 @@ class MCP_CAN
 
     byte CSpin = 10; //defualt val
     
-    byte   m_nExtFlg;                                                  /* identifier xxxID             */
-    INT32U m_nID;                                                      /* can id                       */
-    byte   m_nDlc;                                                     /* data length:                 */
+    byte   m_nExt;                                                  /* identifier xxxID             */
+    INT32U m_nId;                                                      /* can id                       */
+    byte   m_nLen;                                                     /* data length:                 */
     byte   m_nDta[8];                                                  /* data                         */
     byte   m_nRtr;                                                     /* rtr                          */
     byte   m_nfilhit;
@@ -66,19 +66,31 @@ class MCP_CAN
 *  can operator function
 */    
 
-    byte setMsg(INT32U id, byte ext, byte rtr, byte len, byte *pData);    /* set message                  */  
-    byte clearMsg();                                               /* clear all message to zero    */
-    byte readMsg();                                                /* read message                 */
-    byte sendMsg();                                                /* send message                 */
+    byte _setMsg(INT32U id, byte ext, byte rtr, byte len, byte *pData);    /* set message                  */  
+    byte _clearMsg();                                               /* clear all message to zero    */
+    byte _readMsg();                                                /* read message                 */
+    byte _sendMsg();                                                /* send message                 */
 
 public:
+
+    //------Setup------------------------------
     MCP_CAN(byte _CS);
     byte begin(byte speedset);                                       /* Constructor                    */
-    byte sendMsgBuf(INT32U id, byte ext, byte rtr, byte len, byte *buf);      /* send buf                     */
-    byte readMsgBuf(byte *len, byte *buf);                          /* read buf                     */
-    byte checkReceive(void);                                        /* if something received        */
-    INT32U getCanId(void);                                          /* get can id when receive      */
+
+    //------Transmission-----------------------
+    bool sendTXBuf(INT32U id, byte ext, byte rtr, byte len, byte *buf);      /* send buf                     */
+
+    //------Reception----------------------
+    bool checkReceive(void);                                        /* if something received        */
+    bool readInMsgBuf(void);
+
+    //------Receive Buffer----------------------
+    //void getRXBuf(INT32U *id, bool *ext, bool *rtr, byte *len, byte *buf); 
+  INT32U getCanID(void);                                          /* get can id when receive      */
+    bool getCanExt(void);
     bool getCanRTR(void);
+    byte getCanBytesLen(void);
+    void getCanBytes(byte *buf);                          /* passes backbyte array */
 
     //------Reception Configuration-----------SEG
     void enableRXBuf0Filters(byte mode);            // Set the filtering mode for the recieve buffer 0
@@ -86,8 +98,8 @@ public:
     void enableRXBuf1Filters(byte mode);            // Set the filtering mode for the recieve buffer 1
     byte getRXBuf1FilterHit();                      // Returns a value for which filter allowed the message in buffer 1
     void setRollover(bool mode);                    // Enables or disables rollover in the recieve buffers
-    byte getBuf0RTR();                              // Returns a value representing if the RTR bits are set in recieve buffer 0
-    byte getBuf1RTR();                              // Returns a value representing if the RTR bits are set in recieve buffer 1
+    //byte getBuf0RTR();                              // Returns a value representing if the RTR bits are set in recieve buffer 0
+    //byte getBuf1RTR();                              // Returns a value representing if the RTR bits are set in recieve buffer 1
 
     //------Masks & Filters Configuration-----SEG
     void setRXFilt(int num, bool extended, INT32U filtBits);
