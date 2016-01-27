@@ -24,7 +24,7 @@
 
 
 
-#define spi_read() SPI.transfer(0x00)                           //The arduino SPI lib dose not have a read, instead 0's are sent while the data is read in at the same time
+#define spi_read() SPI.transfer(0x00)  //The arduino SPI lib dose not have a read, instead 0's are sent while the data is read in at the same time
 
 /*********************************************************************************************************
 ** Function name:           mcp2515_reset
@@ -419,15 +419,15 @@ void MCP_CAN::mcp2515_write_canMsg(const byte buffer_sidh_addr)
 {
     byte mcp_addr;
     mcp_addr = buffer_sidh_addr;
-    mcp2515_setRegisterS(mcp_addr+5, m_nDta, m_nDlc );                  /* write data bytes, m_nDlc is
+    mcp2515_setRegisterS(mcp_addr+5, m_nDta, m_nLen );                  /* write data bytes, m_nLen is
                                                                          used to tell setRegisterS how many*/
 
     if ( m_nRtr == 1)                                                   /* if RTR set bit in byte       */
     {
-        m_nDlc |= MCP_RTR_MASK;  
+        m_nLen |= MCP_RTR_MASK;  
     }
-    mcp2515_setRegister((mcp_addr+4), m_nDlc );                        /* write the RTR and DLC (mcp_addr+4) = TXBnCTRL +1 +4 = TXBnDLC */
-    mcp2515_write_id(mcp_addr, m_nExtFlg, m_nID );                     /* write CAN id                 */
+    mcp2515_setRegister((mcp_addr+4), m_nLen );                        /* write the RTR and DLC (mcp_addr+4) = TXBnCTRL +1 +4 = TXBnDLC */
+    mcp2515_write_id(mcp_addr, m_nExt, m_nId );                     /* write CAN id                 */
 
 }
 
@@ -441,10 +441,10 @@ void MCP_CAN::mcp2515_read_canMsg(const byte buffer_sidh_addr)        /* read ca
 
     mcp_addr = buffer_sidh_addr;
 
-    mcp2515_read_id( mcp_addr, &m_nExtFlg,&m_nID );
+    mcp2515_read_id( mcp_addr, &m_nExt,&m_nId );
 
     ctrl = mcp2515_readRegister( mcp_addr-1 );
-    m_nDlc = mcp2515_readRegister( mcp_addr+4 );
+    m_nLen = mcp2515_readRegister( mcp_addr+4 );
 
     if ((ctrl & 0x08)) {
         m_nRtr = 1;
@@ -453,8 +453,8 @@ void MCP_CAN::mcp2515_read_canMsg(const byte buffer_sidh_addr)        /* read ca
         m_nRtr = 0;
     }
 
-    m_nDlc &= MCP_DLC_MASK;
-    mcp2515_readRegisterS( mcp_addr+5, &(m_nDta[0]), m_nDlc );
+    m_nLen &= MCP_DLC_MASK;
+    mcp2515_readRegisterS( mcp_addr+5, &(m_nDta[0]), m_nLen );
 }
 
 /*********************************************************************************************************
@@ -516,40 +516,40 @@ byte MCP_CAN::begin(byte speedset)
 ** Function name:           send
 ** Description:             set can message, such as dlc, id, dta[] and so on
 *********************************************************************************************************/
-byte MCP_CAN::setMsg(INT32U id, byte ext, byte rtr, byte len, byte *pData)
+byte MCP_CAN::_setMsg(INT32U id, byte ext, byte rtr, byte len, byte *pData)
 {
     int i = 0;
-    m_nExtFlg = ext;
-    m_nID     = id;
+    m_nExt = ext;
+    m_nId     = id;
     m_nRtr    = rtr;
-    m_nDlc    = len;
+    m_nLen    = len;
     for(i = 0; i<8; i++)  //8 bytes in message
     m_nDta[i] = *(pData+i);
     return MCP2515_OK;
 }
 
 /*********************************************************************************************************
-** Function name:           clearMsg
+** Function name:           _clearMsg
 ** Description:             set all message to zero
 *********************************************************************************************************/
-byte MCP_CAN::clearMsg()
+byte MCP_CAN::_clearMsg()
 {
-    m_nID       = 0;
-    m_nDlc      = 0;
-    m_nExtFlg   = 0;
+    m_nId       = 0;
+    m_nLen      = 0;
+    m_nExt   = 0;
     m_nRtr      = 0;
     m_nfilhit   = 0;
-    for(int i = 0; i<m_nDlc; i++ )
+    for(int i = 0; i<m_nLen; i++ )
       m_nDta[i] = 0x00;
 
     return MCP2515_OK;
 }
 
 /*********************************************************************************************************
-** Function name:           sendMsg
+** Function name:           _sendMsg
 ** Description:             send message
 *********************************************************************************************************/
-byte MCP_CAN::sendMsg()
+byte MCP_CAN::_sendMsg()
 {
     byte res, res1, txbuf_n;
     uint16_t uiTimeOut = 0;
@@ -581,20 +581,27 @@ byte MCP_CAN::sendMsg()
 }
 
 /*********************************************************************************************************
-** Function name:           sendMsgBuf
+** Function name:           sendTXBuf
 ** Description:             send buf
 *********************************************************************************************************/
-byte MCP_CAN::sendMsgBuf(INT32U id, byte ext, byte rtr, byte len, byte *buf)
+bool MCP_CAN::sendTXBuf(INT32U id, byte ext, byte rtr, byte len, byte *buf)
 {
-    setMsg(id, ext, rtr, len, buf);
-    sendMsg();
+    _setMsg(id, ext, rtr, len, buf);
+
+    byte result = _sendMsg();
+
+    if(result == CAN_OK){
+        return 1;
+    }else{
+        return 0;//if CAN_SENDMSGTIMEOUT or if CAN_GETTXBFTIMEOUT gets returned
+    }
 }
 
 /*********************************************************************************************************
-** Function name:           readMsg
+** Function name:           _readMsg
 ** Description:             read message
 *********************************************************************************************************/
-byte MCP_CAN::readMsg()
+byte MCP_CAN::_readMsg()
 {
     byte stat, res;
 
@@ -619,47 +626,86 @@ byte MCP_CAN::readMsg()
     return res;
 }
 
-/*********************************************************************************************************
-** Function name:           readMsgBuf
-** Description:             read message buf
-*********************************************************************************************************/
-byte MCP_CAN::readMsgBuf(byte *len, byte buf[])
-{
-    readMsg();
-    *len = m_nDlc;
-    for(int i = 0; i<m_nDlc; i++)
-    {
-      buf[i] = m_nDta[i];
-    }
-}
+
 
 /*********************************************************************************************************
 ** Function name:           checkReceive
 ** Description:             check if got something
 *********************************************************************************************************/
-byte MCP_CAN::checkReceive(void)
+bool MCP_CAN::checkReceive(void)
 {
     byte res;
     res = mcp2515_readStatus();                                         /* RXnIF in Bit 1 and 0         */
     if ( res & MCP_STAT_RXIF_MASK ) 
     {
-        return CAN_MSGAVAIL;
+        return 1;
     }
     else 
     {
-        return CAN_NOMSG;
+        return 0;
     }
 }
 
 
 /*********************************************************************************************************
-** Function name:           getCanId
+** Function name:           getCanID
 ** Description:             when receive something ,u can get the can id!!
 *********************************************************************************************************/
-INT32U MCP_CAN::getCanId(void)
+
+
+bool MCP_CAN::readInMsgBuf(void)
 {
-    return m_nID;
+    byte result = _readMsg();  
+
+    if(result == CAN_OK){
+        return 1;
+    }
+    else if(result == CAN_NOMSG){
+        return 0;
+    }
 }
+/*
+bool MCP_CAN::getRXBuf(INT32U *id, bool *ext, bool *rtr, byte *len, byte *buf)
+{
+    id        =  m_nId;
+    ext       =  m_nExt;
+    rtr       =  m_nRtr;
+    len       =  m_nLen;
+    for(i = 0; i<8; i++){ //8 bytes in message
+        buf[i] = m_nDta[i]
+    }
+}
+
+*/
+INT32U MCP_CAN::getCanID(void)
+{
+    return m_nId;
+}
+
+bool MCP_CAN::getCanExt(void)
+{
+    return (bool)m_nExt;
+}
+
+bool MCP_CAN::getCanRTR(void)
+{
+    return (bool)m_nRtr;
+}
+
+byte MCP_CAN::getCanBytesLen(void)
+{
+    return m_nLen;
+}
+
+void MCP_CAN::getCanBytes(byte buf[])
+{
+    //_readMsg();
+    for(int i = 0; i<m_nLen; i++)
+    {
+      buf[i] = m_nDta[i];
+    }
+}
+
 
 //------Reception Configuration-----------SEG
 
@@ -793,6 +839,7 @@ void MCP_CAN::setRollover(bool mode){
     mcp2515_setCANCTRL_Mode(MODE_NORMAL);                               // Return to normal operation
 }
 
+
 /*********************************************************************************************************
 ** Function name:           getBuf0RTR
 ** Description:             This function returns a byte containing the contents of the RXRTR bit, which
@@ -803,6 +850,7 @@ void MCP_CAN::setRollover(bool mode){
 **                          RXBUFRTR_SET - The message is a Remote Transfer Request
 **                          RXBUFRTR_CLR - The message is a normal transmission
 *********************************************************************************************************/
+/*
 byte MCP_CAN::getBuf0RTR(){
     byte val = mcp2515_readRegister(RXB0CTRL);                          // Get the values in RXB0CTRL
 
@@ -820,7 +868,9 @@ byte MCP_CAN::getBuf0RTR(){
 **                          Return options are as follows:
 **                          RXBUFRTR_SET - The message is a Remote Transfer Request
 **                          RXBUFRTR_CLR - The message is a normal transmission
+
 *********************************************************************************************************/
+/*
 byte MCP_CAN::getBuf1RTR(){
     
     byte val = mcp2515_readRegister(RXB1CTRL);                          // Get the values in RXB1CTRL
@@ -995,12 +1045,6 @@ void MCP_CAN::clearInt(int intBit){
 
 
 
-
-//!!!!!!!!!!!!!!!!GABRIEL MARIA FUNCTION FOR RTR!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-bool MCP_CAN::getCanRTR(void)
-{
-    return (bool)m_nRtr;
-}
 
 
 //!!!!!!!!!!!!!!!!GABRIEL MARIA FUNCTIONS FOR ERRORS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
